@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mapa de Cofres</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=Cinzel:wght@600&family=JetBrains+Mono:wght@600&display=swap">
+<style>
+/* Layout: el mapa ocupa toda la pantalla; barra superior e inferior flotan encima. Un solo look oscuro, como una mesa de dungeon. */
+:root {
+  --bg: #06080b;
+  --panel: #0e1318f2;
+  --line: #26323b;
+  --ink: #e2ecf0;
+  --muted: #83939d;
+  --gold: #f0b62e;
+  --gold-dim: #8a6314;
+  --ok: #7be8a8;
+  --font-display: "Cinzel", Georgia, serif;
+  --font-body: "Barlow", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 14px;
+  overflow: hidden;
+}
+.app { position: relative; height: 100%; height: 100dvh; overflow: hidden; }
+
+#vp {
+  position: absolute; inset: 0;
+  touch-action: none; cursor: crosshair; overflow: hidden;
+  user-select: none; -webkit-user-select: none;
+}
+#world {
+  position: absolute; left: 0; top: 0;
+  width: 2048px; height: 2048px;
+  transform-origin: 0 0; will-change: transform;
+}
+#world > img {
+  display: block; width: 2048px; height: 2048px; max-width: none;
+  pointer-events: none; -webkit-user-drag: none;
+}
+
+/* Cofres: tamaño fijo en pantalla aunque el mapa se acerque o aleje */
+.chest {
+  position: absolute; width: 34px; height: 30px;
+  transform: translate(-50%, -50%) scale(var(--inv, 1));
+  transform-origin: 50% 50%;
+  cursor: pointer; outline: none;
+}
+.chest .ic {
+  width: 34px; height: 30px; display: block;
+  filter: drop-shadow(0 0 6px rgba(240, 182, 46, .55)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8));
+}
+.chest:focus-visible .ic { filter: drop-shadow(0 0 0 #fff) drop-shadow(0 0 3px #fff); }
+.chest .t {
+  position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+  margin-top: 3px; padding: 1px 7px; border-radius: 999px;
+  background: #06080bf2; border: 1px solid var(--gold-dim); color: var(--gold);
+  font: 600 12px/1.5 var(--font-mono); font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.chest.done .t { border-color: var(--ok); color: var(--ok); }
+.chest.done .ic { animation: glow 1.8s ease-in-out infinite; }
+@keyframes glow {
+  0%, 100% { filter: drop-shadow(0 0 5px rgba(123, 232, 168, .5)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8)); }
+  50% { filter: drop-shadow(0 0 12px rgba(123, 232, 168, .95)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8)); }
+}
+.chest.pending .ic { opacity: .8; }
+.chest.pending { cursor: default; }
+
+.pop {
+  position: absolute; left: 50%; bottom: calc(100% + 10px);
+  transform: translateX(calc(-50% + var(--dx, 0px)));
+  display: flex; gap: 6px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--gold-dim); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .6);
+  cursor: default;
+}
+.pop.below { bottom: auto; top: calc(100% + 10px); }
+.pop button {
+  font: 600 15px/1 var(--font-body); color: var(--ink);
+  min-width: 62px; padding: 9px 10px; border-radius: 7px;
+  border: 1px solid var(--line); background: #141c22; cursor: pointer;
+}
+.pop button small { font-weight: 500; font-size: 11px; color: var(--muted); margin-left: 2px; }
+.pop button:hover { border-color: var(--gold); color: var(--gold); }
+.pop button:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+/* Barras flotantes */
+.bar, .foot {
+  position: absolute; left: 0; right: 0; z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  pointer-events: none;
+}
+.bar { top: 0; padding-block: 12px 28px; background: linear-gradient(#06080bf5, #06080b00); }
+.foot { bottom: 0; padding-block: 28px 12px; background: linear-gradient(#06080b00, #06080bf5); }
+.bar > *, .foot > * { pointer-events: auto; }
+h1 {
+  margin: 0; font: 600 17px/1.1 var(--font-display);
+  letter-spacing: .14em; text-transform: uppercase; color: var(--gold);
+}
+.stats { margin-top: 5px; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.btn {
+  font: 600 13px/1 var(--font-body); color: var(--ink);
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--panel); cursor: pointer;
+}
+.btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+.zoom { display: flex; gap: 6px; }
+.zoom .btn { min-width: 38px; text-align: center; }
+.hint { color: var(--muted); font-size: 12.5px; line-height: 1.4; max-width: 46ch; min-width: 0; }
+.note {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 74px; z-index: 6;
+  max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--gold-dim); color: var(--gold);
+  font-size: 13px; text-align: center; pointer-events: none;
+}
+.empty {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 4;
+  max-width: min(340px, calc(100% - 32px)); padding: 14px 18px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line); text-align: center;
+  color: var(--ink); line-height: 1.45; pointer-events: none;
+}
+.empty b { color: var(--gold); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .chest.done .ic { animation: none; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="gLid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#d49a1e"/></linearGradient>
+    <linearGradient id="gBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8ad2a"/><stop offset="1" stop-color="#a56d10"/></linearGradient>
+    <symbol id="chest" viewBox="0 0 40 34">
+      <path d="M4 15 C4 6 10 3 20 3 C30 3 36 6 36 15 Z" fill="url(#gLid)" stroke="#4d3004" stroke-width="1.6" stroke-linejoin="round"/>
+      <rect x="4" y="15" width="32" height="16" rx="2" fill="url(#gBody)" stroke="#4d3004" stroke-width="1.6"/>
+      <path d="M12 4.4 V31 M28 4.4 V31 M4 15 H36" stroke="#4d3004" stroke-width="1.6" fill="none"/>
+      <path d="M7.5 10 C9.5 6.6 13.5 5.2 17 5.2" stroke="#fff3b8" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".85"/>
+      <rect x="17" y="12.5" width="6" height="7.5" rx="1.2" fill="#fff0b3" stroke="#4d3004" stroke-width="1.4"/>
+      <circle cx="20" cy="16" r="1.1" fill="#4d3004"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app">
+  <div id="vp">
+    <div id="world"><img id="map" src="mapa.jpg" width="2048" height="2048" alt="Mapa del laberinto" draggable="false"></div>
+  </div>
+
+  <div class="bar">
+    <div>
+      <h1>Mapa de Cofres</h1>
+      <div class="stats" id="stats">Cargando…</div>
+    </div>
+    <button class="btn" id="sound" type="button" aria-pressed="true">Sonido: sí</button>
+  </div>
+
+  <div class="empty" id="empty" hidden>Toca un punto del mapa para colocar un <b>cofre</b> y elegir <b>20, 25 o 40 minutos</b>.</div>
+  <div class="note" id="note" hidden></div>
+
+  <div class="foot">
+    <div class="hint" id="hint"></div>
+    <div class="zoom">
+      <button class="btn" id="zin" type="button" aria-label="Acercar">+</button>
+      <button class="btn" id="zout" type="button" aria-label="Alejar">−</button>
+      <button class="btn" id="zfit" type="button">Centrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Configuración de Firebase del proyecto mapa-cofres -->
+<script>
+window.FIREBASE_CONFIG = {
+  apiKey: "AIzaSyCo65vTbOv-rtNN4oE4U51b6HI6VroLgjI",
+  authDomain: "mapa-cofres.firebaseapp.com",
+  databaseURL: "https://mapa-cofres-default-rtdb.firebaseio.com",
+  projectId: "mapa-cofres",
+  appId: "1:418886764681:web:0fb5612acb5177154dde58"
+};
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+(function () {
+  var SIZE = 2048, MINS = [20, 25, 40];
+  var vp = document.getElementById('vp'), world = document.getElementById('world');
+  var elStats = document.getElementById('stats'), elEmpty = document.getElementById('empty');
+  var elNote = document.getElementById('note'), elHint = document.getElementById('hint');
+  var btnSound = document.getElementById('sound');
+
+  var s = 1, tx = 0, ty = 0, fit = 1, touchedView = false;
+  var db = null, user = null, canWrite = true, booted = false, dbError = false;
+  var chests = {};              // id -> {x, y, endsAt, minutes}
+  var els = new Map();          // id -> elemento
+  var pending = null;           // {x, y, el}
+  var running = new Set(), notified = new Set();
+  var soundOn = true, actx = null, noteTimer = null;
+
+  try { soundOn = localStorage.getItem('mc-sound') !== '0'; } catch (e) {}
+  function paintSound() { btnSound.textContent = 'Sonido: ' + (soundOn ? 'sí' : 'no'); btnSound.setAttribute('aria-pressed', String(soundOn)); }
+  paintSound();
+  btnSound.addEventListener('click', function () {
+    soundOn = !soundOn; paintSound(); unlockAudio();
+    try { localStorage.setItem('mc-sound', soundOn ? '1' : '0'); } catch (e) {}
+    if (soundOn) beep();
+  });
+
+  var coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  elHint.textContent = coarse
+    ? 'Toca: colocar cofre · Mantén pulsado un cofre: quitarlo · Pellizca: zoom'
+    : 'Clic: colocar cofre · Clic derecho sobre un cofre: quitarlo · Rueda: zoom · Arrastra para mover';
+
+  /* ---------- vista (pan / zoom) ---------- */
+  function applyView() {
+    world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+    world.style.setProperty('--inv', String(1 / s));
+  }
+  function resetView() {
+    var w = vp.clientWidth, h = vp.clientHeight;
+    fit = Math.min(w, h) / SIZE * 0.98;
+    s = fit; tx = (w - SIZE * s) / 2; ty = (h - SIZE * s) / 2;
+    applyView();
+  }
+  function zoomAt(cx, cy, ns) {
+    ns = Math.max(fit * 0.6, Math.min(Math.max(4, fit * 4), ns));
+    tx = cx - (cx - tx) * (ns / s); ty = cy - (cy - ty) * (ns / s); s = ns;
+    touchedView = true; applyView();
+  }
+  function zoomCenter(f) { zoomAt(vp.clientWidth / 2, vp.clientHeight / 2, s * f); }
+  document.getElementById('zin').addEventListener('click', function () { zoomCenter(1.4); });
+  document.getElementById('zout').addEventListener('click', function () { zoomCenter(1 / 1.4); });
+  document.getElementById('zfit').addEventListener('click', function () { touchedView = false; resetView(); });
+  window.addEventListener('resize', function () { if (!touchedView) resetView(); });
+
+  vp.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    var r = vp.getBoundingClientRect();
+    zoomAt(e.clientX - r.left, e.clientY - r.top, s * Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0015)));
+  }, { passive: false });
+
+  var ptrs = new Map(), drag = null, lastPinch = null;
+  function pinchState() {
+    var a = Array.from(ptrs.values());
+    return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, cx: (a[0].x + a[1].x) / 2, cy: (a[0].y + a[1].y) / 2 };
+  }
+  vp.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.chest')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) { drag = null; lastPinch = pinchState(); }
+    else if (ptrs.size === 1) { drag = { sx: e.clientX, sy: e.clientY, tx0: tx, ty0: ty, moved: false }; }
+  });
+  window.addEventListener('pointermove', function (e) {
+    if (lp && Math.hypot(e.clientX - lp.sx, e.clientY - lp.sy) > 10) cancelLP();
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 2) {
+      var ps = pinchState(), r = vp.getBoundingClientRect();
+      zoomAt(ps.cx - r.left, ps.cy - r.top, s * ps.d / lastPinch.d);
+      tx += ps.cx - lastPinch.cx; ty += ps.cy - lastPinch.cy; applyView();
+      lastPinch = ps;
+    } else if (drag) {
+      var dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+      if (!drag.moved && Math.hypot(dx, dy) > 6) drag.moved = true;
+      if (drag.moved) { tx = drag.tx0 + dx; ty = drag.ty0 + dy; touchedView = true; applyView(); }
+    }
+  });
+  function endPtr(e, cancelled) {
+    cancelLP();
+    if (!ptrs.has(e.pointerId)) return;
+    var wasTap = !cancelled && ptrs.size === 1 && drag && !drag.moved;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size === 0) { drag = null; if (wasTap) onTap(e); }
+    else if (ptrs.size === 1) { drag = null; }
+  }
+  window.addEventListener('pointerup', function (e) { endPtr(e, false); });
+  window.addEventListener('pointercancel', function (e) { endPtr(e, true); });
+  window.addEventListener('pointerdown', unlockAudio);
+
+  /* ---------- cofres ---------- */
+  function makeChest() {
+    var el = document.createElement('div');
+    el.className = 'chest';
+    el.innerHTML = '<svg class="ic" viewBox="0 0 40 34" aria-hidden="true"><use href="#chest"></use></svg>';
+    return el;
+  }
+  function place(el, x, y) { el.style.left = (x * SIZE) + 'px'; el.style.top = (y * SIZE) + 'px'; }
+
+  function onTap(e) {
+    var r = vp.getBoundingClientRect();
+    var x = ((e.clientX - r.left) - tx) / (s * SIZE), y = ((e.clientY - r.top) - ty) / (s * SIZE);
+    if (x < 0 || x > 1 || y < 0 || y > 1) { clearPending(); return; }
+    if (!booted) return;
+    if (!canWrite) { flash('Solo puedes ver este mapa. Pide acceso de colaborador para colocar cofres.'); return; }
+    setPending(x, y);
+  }
+  function setPending(x, y) {
+    clearPending();
+    var el = makeChest(); el.classList.add('pending'); place(el, x, y);
+    var pop = document.createElement('div'); pop.className = 'pop';
+    MINS.forEach(function (m) {
+      var b = document.createElement('button'); b.type = 'button';
+      b.innerHTML = m + '<small>min</small>';
+      b.addEventListener('click', function () { startTimer(m); });
+      pop.appendChild(b);
+    });
+    el.appendChild(pop); world.appendChild(el);
+    pending = { x: x, y: y, el: el };
+    var sx = tx + x * SIZE * s, sy = ty + y * SIZE * s, half = pop.offsetWidth / 2 + 8;
+    if (sy < 150) pop.classList.add('below');
+    var dx = 0;
+    if (sx - half < 0) dx = half - sx; else if (sx + half > vp.clientWidth) dx = vp.clientWidth - half - sx;
+    pop.style.setProperty('--dx', dx + 'px');
+    var first = pop.querySelector('button'); if (first) first.focus({ preventScroll: true });
+    syncUI();
+  }
+  function clearPending() { if (pending) { pending.el.remove(); pending = null; syncUI(); } }
+
+  function startTimer(min) {
+    if (!pending || !canWrite) return;
+    var now = nowMs();
+    var data = { x: pending.x, y: pending.y, minutes: min, endsAt: now + min * 60000, createdAt: now };
+    clearPending();
+    if (db) {
+      db.ref('chests').push(data).catch(function () { flash('No se pudo guardar el cofre. Inténtalo de nuevo.'); });
+    } else {
+      chests['l' + now + Math.random().toString(36).slice(2, 6)] = data; sync();
+    }
+  }
+  function removeChest(id) {
+    if (!canWrite || !chests[id]) return;
+    if (db) {
+      db.ref('chests/' + id).remove().catch(function () { flash('No se pudo quitar el cofre. Inténtalo de nuevo.'); });
+    } else { delete chests[id]; sync(); }
+  }
+
+  vp.addEventListener('contextmenu', function (e) {
+    e.preventDefault();
+    var c = e.target.closest('.chest');
+    if (c && c.dataset.id) removeChest(c.dataset.id); else clearPending();
+  });
+  var lp = null;
+  function cancelLP() { if (lp) { clearTimeout(lp.t); lp = null; } }
+  world.addEventListener('pointerdown', function (e) {
+    var c = e.target.closest('.chest[data-id]');
+    if (!c || e.pointerType === 'mouse') return;
+    var id = c.dataset.id;
+    cancelLP();
+    lp = { sx: e.clientX, sy: e.clientY, t: setTimeout(function () {
+      lp = null; removeChest(id);
+      try { navigator.vibrate && navigator.vibrate(30); } catch (err) {}
+    }, 650) };
+  });
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') clearPending();
+    if ((e.key === 'Delete' || e.key === 'Backspace') && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.id) {
+      e.preventDefault(); removeChest(document.activeElement.dataset.id);
+    }
+  });
+
+  /* ---------- render ---------- */
+  function sync() {
+    Object.keys(chests).forEach(function (id) {
+      if (els.has(id)) return;
+      var el = makeChest(); el.dataset.id = id; el.tabIndex = 0; el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', 'Cofre con temporizador');
+      var t = document.createElement('div'); t.className = 't'; el.appendChild(t);
+      place(el, chests[id].x, chests[id].y); world.appendChild(el); els.set(id, el);
+    });
+    els.forEach(function (el, id) {
+      if (!chests[id]) { el.remove(); els.delete(id); running.delete(id); notified.delete(id); }
+    });
+    tick(); syncUI();
+  }
+  function fmt(ms) {
+    var sec = Math.ceil(ms / 1000), m = Math.floor(sec / 60), r = sec % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+  function tick() {
+    var now = nowMs(), run = 0, done = 0, ring = false;
+    els.forEach(function (el, id) {
+      var c = chests[id]; if (!c) return;
+      var left = c.endsAt - now, t = el.firstElementChild.nextElementSibling || el.querySelector('.t');
+      if (left > 0) {
+        run++; running.add(id);
+        var txt = fmt(left); if (t.textContent !== txt) t.textContent = txt;
+        el.classList.remove('done');
+      } else {
+        done++;
+        if (t.textContent !== '0:00') t.textContent = '0:00';
+        el.classList.add('done');
+        if (running.has(id) && !notified.has(id)) { notified.add(id); ring = true; }
+      }
+    });
+    if (ring) beep();
+    var parts = [];
+    parts.push(run + (run === 1 ? ' en cuenta' : ' en cuenta'));
+    parts.push(done + (done === 1 ? ' listo' : ' listos'));
+    var txt2 = parts.join(' · ');
+    if (!db && booted) txt2 += ' · modo local';
+    if (dbError) txt2 += ' · sin conexión';
+    if (elStats.textContent !== txt2) elStats.textContent = txt2;
+  }
+  function syncUI() {
+    elEmpty.hidden = !(booted && canWrite && els.size === 0 && !pending);
+    if (!booted) return;
+    if (!db) showNote('Firebase sin configurar: los cofres no se comparten con nadie.');
+    else if (!canWrite) showNote('Solo lectura: pide acceso de colaborador para colocar cofres.');
+    else if (dbError) showNote('Se perdió la conexión con los datos compartidos.');
+    else if (!noteTimer) elNote.hidden = true;
+  }
+  function showNote(msg) { elNote.textContent = msg; elNote.hidden = false; }
+  function flash(msg) {
+    showNote(msg); clearTimeout(noteTimer);
+    noteTimer = setTimeout(function () { noteTimer = null; syncUI(); }, 3500);
+  }
+  setInterval(tick, 500);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) tick(); });
+
+  /* ---------- sonido ---------- */
+  function unlockAudio() {
+    try {
+      if (!actx) { var AC = window.AudioContext || window.webkitAudioContext; if (AC) actx = new AC(); }
+      if (actx && actx.state === 'suspended') actx.resume();
+    } catch (e) {}
+  }
+  function beep() {
+    if (!soundOn || !actx) return;
+    try {
+      [0, 0.2].forEach(function (d, i) {
+        var o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + d;
+        o.type = 'sine'; o.frequency.value = i ? 1175 : 880;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+        o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + 0.32);
+      });
+    } catch (e) {}
+  }
+
+  /* ---------- datos compartidos ---------- */
+  var offset = 0;
+  function nowMs() { return Date.now() + offset; }
+  function boot() {
+    var cfg = window.FIREBASE_CONFIG || {};
+    var ok = window.firebase && cfg.databaseURL && cfg.databaseURL.indexOf('http') === 0;
+    if (ok) {
+      try {
+        firebase.initializeApp(cfg);
+        db = firebase.database();
+        // Corrige la diferencia de reloj entre dispositivos usando la hora del servidor
+        db.ref('.info/serverTimeOffset').on('value', function (sn) { offset = sn.val() || 0; tick(); });
+        db.ref('chests').on('value', function (snap) {
+          var raw = snap.val() || {}, next = {};
+          Object.keys(raw).forEach(function (id) {
+            var v = raw[id];
+            if (v && typeof v.x === 'number' && typeof v.y === 'number' && typeof v.endsAt === 'number') next[id] = v;
+          });
+          chests = next; dbError = false; sync();
+        }, function () { dbError = true; syncUI(); tick(); });
+      } catch (e) { db = null; }
+    }
+    booted = true;
+    sync();
+  }
+
+  resetView();
+  var img = document.getElementById('map');
+  if (!img.complete) img.addEventListener('load', function () { if (!touchedView) resetView(); });
+  boot();
+})();
+</script>
+</body>
+</html>
