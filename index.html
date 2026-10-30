@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@500;600&family=Cinzel:wght@600&family=JetBrains+Mono:wght@600&display=swap">
 <style>
-/* Layout: el mapa ocupa toda la pantalla; barra superior e inferior flotan encima. Un solo look oscuro, como una mesa de dungeon. */
+/* Layout: el mapa ocupa toda la pantalla; barra superior e inferior flotan encima y un panel lateral con las herramientas. Un solo look oscuro, como una mesa de dungeon. */
 :root {
   --bg: #06080b;
   --panel: #0e1318f2;
@@ -51,21 +51,23 @@ body {
   pointer-events: none; -webkit-user-drag: none;
 }
 
-/* Cofres: tamaño fijo en pantalla aunque el mapa se acerque o aleje */
+/* Marcadores: tamaño fijo en pantalla aunque el mapa se acerque o aleje */
 .chest {
-  position: absolute; width: 34px; height: 30px;
+  position: absolute; width: 34px; height: 34px;
   transform: translate(-50%, -50%) scale(var(--inv, 1));
   transform-origin: 50% 50%;
   cursor: pointer; outline: none;
 }
 .chest .ic {
-  width: 34px; height: 30px; display: block;
+  width: 34px; height: 34px; display: block;
   filter: drop-shadow(0 0 6px rgba(240, 182, 46, .55)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8));
 }
+.k-boss .ic { filter: drop-shadow(0 0 6px rgba(255, 96, 72, .55)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8)); }
+.k-portal .ic { filter: drop-shadow(0 0 8px rgba(139, 92, 255, .9)) drop-shadow(0 2px 2px rgba(0, 0, 0, .8)); }
 .chest:focus-visible .ic { filter: drop-shadow(0 0 0 #fff) drop-shadow(0 0 3px #fff); }
 .chest .t {
   position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
-  margin-top: 3px; padding: 1px 7px; border-radius: 999px;
+  margin-top: 1px; padding: 1px 7px; border-radius: 999px;
   background: #06080bf2; border: 1px solid var(--gold-dim); color: var(--gold);
   font: 600 12px/1.5 var(--font-mono); font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -95,7 +97,7 @@ body {
 }
 .pop button small { font-weight: 500; font-size: 11px; color: var(--muted); margin-left: 2px; }
 .pop button:hover { border-color: var(--gold); color: var(--gold); }
-.pop button:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.pop button:focus-visible, .btn:focus-visible, .tool:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
 /* Barras flotantes */
 .bar, .foot {
@@ -108,6 +110,7 @@ body {
 .bar { top: 0; padding-block: 12px 28px; background: linear-gradient(#06080bf5, #06080b00); }
 .foot { bottom: 0; padding-block: 28px 12px; background: linear-gradient(#06080b00, #06080bf5); }
 .bar > *, .foot > * { pointer-events: auto; }
+.bar-r { display: flex; gap: 8px; }
 h1 {
   margin: 0; font: 600 17px/1.1 var(--font-display);
   letter-spacing: .14em; text-transform: uppercase; color: var(--gold);
@@ -119,9 +122,47 @@ h1 {
   background: var(--panel); cursor: pointer;
 }
 .btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+#toggle { display: none; }
 .zoom { display: flex; gap: 6px; }
 .zoom .btn { min-width: 38px; text-align: center; }
 .hint { color: var(--muted); font-size: 12.5px; line-height: 1.4; max-width: 46ch; min-width: 0; }
+
+/* Panel lateral: herramientas, atajos y leyenda */
+.side {
+  position: absolute; z-index: 5; top: 72px;
+  left: max(16px, env(safe-area-inset-left, 0px));
+  width: 224px; max-height: calc(100% - 150px); overflow-y: auto;
+  padding: 10px; border-radius: 12px;
+  background: var(--panel); border: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.side-h {
+  font: 600 11px/1 var(--font-body); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); padding: 2px 2px 0;
+}
+.tools { display: flex; flex-direction: column; gap: 6px; }
+.tool {
+  display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 8px; align-items: center;
+  text-align: left; padding: 6px 8px; border-radius: 9px;
+  border: 1px solid var(--line); background: #121920; color: var(--ink);
+  font: 600 14px/1.2 var(--font-body); cursor: pointer;
+}
+.tool .ti { width: 30px; height: 30px; display: block; }
+.tool small { display: block; margin-top: 2px; font-weight: 500; font-size: 11.5px; color: var(--muted); }
+.tool:hover { border-color: var(--gold-dim); }
+.tool.sel { border-color: var(--gold-dim); background: #1a2026; }
+.tool.active { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); background: #1f2527; }
+kbd {
+  font: 600 11px/1 var(--font-mono); padding: 3px 6px; border-radius: 5px;
+  border: 1px solid var(--line); background: #0b1014; color: var(--gold);
+  white-space: nowrap;
+}
+.legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.4; color: var(--muted); }
+.legend b { color: var(--ink); font-weight: 600; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.dot.g { background: var(--gold); }
+.dot.v { background: var(--ok); }
+
 .note {
   position: absolute; left: 50%; transform: translateX(-50%); bottom: 74px; z-index: 6;
   max-width: calc(100% - 32px); padding: 8px 14px; border-radius: 999px;
@@ -135,6 +176,12 @@ h1 {
   color: var(--ink); line-height: 1.45; pointer-events: none;
 }
 .empty b { color: var(--gold); font-weight: 600; }
+
+@media (max-width: 640px) {
+  #toggle { display: inline-block; }
+  .side { display: none; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); width: auto; top: 66px; }
+  .side.open { display: flex; }
+}
 @media (prefers-reduced-motion: reduce) { .chest.done .ic { animation: none; } }
 </style>
 </head>
@@ -144,6 +191,10 @@ h1 {
   <defs>
     <linearGradient id="gLid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#d49a1e"/></linearGradient>
     <linearGradient id="gBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8ad2a"/><stop offset="1" stop-color="#a56d10"/></linearGradient>
+    <linearGradient id="gSteel" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8fa0ab"/><stop offset=".5" stop-color="#e4ecf0"/><stop offset="1" stop-color="#7a8a95"/></linearGradient>
+    <linearGradient id="gPortal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8be9ff"/><stop offset="1" stop-color="#9b6bff"/></linearGradient>
+    <radialGradient id="gPortalIn" cx=".5" cy=".5" r=".6"><stop offset="0" stop-color="#e9ddff"/><stop offset=".55" stop-color="#7b52ff"/><stop offset="1" stop-color="#2a1160"/></radialGradient>
+
     <symbol id="chest" viewBox="0 0 40 34">
       <path d="M4 15 C4 6 10 3 20 3 C30 3 36 6 36 15 Z" fill="url(#gLid)" stroke="#4d3004" stroke-width="1.6" stroke-linejoin="round"/>
       <rect x="4" y="15" width="32" height="16" rx="2" fill="url(#gBody)" stroke="#4d3004" stroke-width="1.6"/>
@@ -151,6 +202,21 @@ h1 {
       <path d="M7.5 10 C9.5 6.6 13.5 5.2 17 5.2" stroke="#fff3b8" stroke-width="1.2" fill="none" stroke-linecap="round" opacity=".85"/>
       <rect x="17" y="12.5" width="6" height="7.5" rx="1.2" fill="#fff0b3" stroke="#4d3004" stroke-width="1.4"/>
       <circle cx="20" cy="16" r="1.1" fill="#4d3004"/>
+    </symbol>
+
+    <symbol id="boss" viewBox="0 0 40 40">
+      <path d="M20 1.5 C26 1.5 31 4.5 31 9 C27 7 24 7 20 8 C16 7 13 7 9 9 C9 4.5 14 1.5 20 1.5 Z" fill="#c43b2d" stroke="#3a0f0b" stroke-width="1.2" stroke-linejoin="round"/>
+      <path d="M8 24 C8 13 13 8 20 8 C27 8 32 13 32 24 L32 35 L25 35 L25 31 L15 31 L15 35 L8 35 Z" fill="url(#gSteel)" stroke="#1b252c" stroke-width="1.6" stroke-linejoin="round"/>
+      <rect x="10.5" y="17" width="19" height="3.4" rx="1" fill="#0a0e11"/>
+      <rect x="18.6" y="12" width="2.8" height="19" fill="#aab8c1" stroke="#1b252c" stroke-width="1"/>
+      <circle cx="13.5" cy="25" r="1" fill="#0a0e11"/><circle cx="13.5" cy="28" r="1" fill="#0a0e11"/>
+      <circle cx="26.5" cy="25" r="1" fill="#0a0e11"/><circle cx="26.5" cy="28" r="1" fill="#0a0e11"/>
+    </symbol>
+
+    <symbol id="portal" viewBox="0 0 40 40">
+      <ellipse cx="20" cy="20" rx="12" ry="17" fill="url(#gPortalIn)" stroke="url(#gPortal)" stroke-width="3.4"/>
+      <path d="M20 8.5 C28 12 27 19 20 20 C13 21 12 28 20 31.5" stroke="#f4eeff" stroke-width="1.8" fill="none" stroke-linecap="round" opacity=".9"/>
+      <circle cx="30.5" cy="9" r="1.1" fill="#bff4ff"/><circle cx="9" cy="31" r="1.1" fill="#d9c8ff"/>
     </symbol>
   </defs>
 </svg>
@@ -165,10 +231,41 @@ h1 {
       <h1>Mapa de Cofres</h1>
       <div class="stats" id="stats">Cargando…</div>
     </div>
-    <button class="btn" id="sound" type="button" aria-pressed="true">Sonido: sí</button>
+    <div class="bar-r">
+      <button class="btn" id="toggle" type="button" aria-expanded="false" aria-controls="side">Marcadores</button>
+      <button class="btn" id="sound" type="button" aria-pressed="true">Sonido: sí</button>
+    </div>
   </div>
 
-  <div class="empty" id="empty" hidden>Toca un punto del mapa para colocar un <b>cofre</b> y elegir <b>20, 25 o 40 minutos</b>.</div>
+  <aside class="side" id="side" aria-label="Marcadores">
+    <div class="side-h">Marcadores y atajos</div>
+    <div class="tools" role="radiogroup" aria-label="Herramienta">
+      <button class="tool" type="button" role="radio" data-tool="chest" aria-checked="false">
+        <svg class="ti" viewBox="0 0 40 40" aria-hidden="true"><use href="#chest"></use></svg>
+        <span>Cofre<small>20, 25 o 40 min</small></span>
+        <kbd>sin tecla</kbd>
+      </button>
+      <button class="tool" type="button" role="radio" data-tool="boss" aria-checked="false">
+        <svg class="ti" viewBox="0 0 40 40" aria-hidden="true"><use href="#boss"></use></svg>
+        <span>Boss<small>respawn 10 min</small></span>
+        <kbd>B</kbd>
+      </button>
+      <button class="tool" type="button" role="radio" data-tool="portal" aria-checked="false">
+        <svg class="ti" viewBox="0 0 40 40" aria-hidden="true"><use href="#portal"></use></svg>
+        <span>Portal<small>sin timer</small></span>
+        <kbd>X</kbd>
+      </button>
+    </div>
+    <div class="side-h">Leyenda</div>
+    <div class="legend">
+      <div>Mantén <b>B</b> o <b>X</b> y haz clic para colocar ese marcador solo esa vez. Sin tecla se coloca el que está resaltado.</div>
+      <div><span class="dot g"></span>Dorado: en cuenta regresiva.</div>
+      <div><span class="dot v"></span>Verde: tiempo cumplido. Sigue en negativo hasta −1:00:00.</div>
+      <div>Clic derecho sobre un marcador: quitarlo.</div>
+    </div>
+  </aside>
+
+  <div class="empty" id="empty" hidden>Elige una herramienta en el panel y toca el mapa para colocar un <b>marcador</b>.</div>
   <div class="note" id="note" hidden></div>
 
   <div class="foot">
@@ -195,21 +292,27 @@ window.FIREBASE_CONFIG = {
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 (function () {
-  var SIZE = 2048, MINS = [20, 25, 40];
+  var SIZE = 2048, MINS = [20, 25, 40], BOSS_MIN = 10, MAX_OVER = 3600;
+  var NAMES = { chest: 'Cofre', boss: 'Boss', portal: 'Portal' };
+  var KEYS = { KeyB: 'boss', KeyX: 'portal' };
   var vp = document.getElementById('vp'), world = document.getElementById('world');
   var elStats = document.getElementById('stats'), elEmpty = document.getElementById('empty');
   var elNote = document.getElementById('note'), elHint = document.getElementById('hint');
-  var btnSound = document.getElementById('sound');
+  var btnSound = document.getElementById('sound'), btnToggle = document.getElementById('toggle');
+  var side = document.getElementById('side'), toolBtns = side.querySelectorAll('.tool');
+  var narrow = window.matchMedia('(max-width: 640px)');
 
   var s = 1, tx = 0, ty = 0, fit = 1, touchedView = false;
-  var db = null, user = null, canWrite = true, booted = false, dbError = false;
-  var chests = {};              // id -> {x, y, endsAt, minutes}
+  var db = null, canWrite = true, booted = false, dbError = false;
+  var chests = {};              // id -> {type, x, y, endsAt, minutes}
   var els = new Map();          // id -> elemento
   var pending = null;           // {x, y, el}
   var running = new Set(), notified = new Set();
   var soundOn = true, actx = null, noteTimer = null;
+  var selTool = 'chest', held = [];
 
   try { soundOn = localStorage.getItem('mc-sound') !== '0'; } catch (e) {}
+  try { var st = localStorage.getItem('mc-tool'); if (st && NAMES[st]) selTool = st; } catch (e) {}
   function paintSound() { btnSound.textContent = 'Sonido: ' + (soundOn ? 'sí' : 'no'); btnSound.setAttribute('aria-pressed', String(soundOn)); }
   paintSound();
   btnSound.addEventListener('click', function () {
@@ -220,18 +323,46 @@ window.FIREBASE_CONFIG = {
 
   var coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
   elHint.textContent = coarse
-    ? 'Toca: colocar cofre · Mantén pulsado un cofre: quitarlo · Pellizca: zoom'
-    : 'Clic: colocar cofre · Clic derecho sobre un cofre: quitarlo · Rueda: zoom · Arrastra para mover';
+    ? 'Toca: colocar marcador · Mantén pulsado un marcador: quitarlo · Pellizca: zoom'
+    : 'Clic: colocar marcador · Clic derecho sobre un marcador: quitarlo · Rueda: zoom · Arrastra para mover';
+
+  /* ---------- herramientas ---------- */
+  function activeTool() { return held.length ? held[held.length - 1] : selTool; }
+  function paintTools() {
+    var act = activeTool();
+    Array.prototype.forEach.call(toolBtns, function (b) {
+      var t = b.dataset.tool;
+      b.classList.toggle('sel', t === selTool);
+      b.classList.toggle('active', t === act);
+      b.setAttribute('aria-checked', String(t === selTool));
+    });
+    btnToggle.textContent = 'Marcador: ' + NAMES[act];
+  }
+  Array.prototype.forEach.call(toolBtns, function (b) {
+    b.addEventListener('click', function () {
+      selTool = b.dataset.tool;
+      try { localStorage.setItem('mc-tool', selTool); } catch (e) {}
+      clearPending(); paintTools();
+      if (narrow.matches) closeSide();
+    });
+  });
+  function closeSide() { side.classList.remove('open'); btnToggle.setAttribute('aria-expanded', 'false'); }
+  btnToggle.addEventListener('click', function () {
+    var open = side.classList.toggle('open');
+    btnToggle.setAttribute('aria-expanded', String(open));
+  });
+  paintTools();
 
   /* ---------- vista (pan / zoom) ---------- */
+  function sideW() { return (!narrow.matches && side.offsetWidth) ? side.offsetWidth + 32 : 0; }
   function applyView() {
     world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
     world.style.setProperty('--inv', String(1 / s));
   }
   function resetView() {
-    var w = vp.clientWidth, h = vp.clientHeight;
-    fit = Math.min(w, h) / SIZE * 0.98;
-    s = fit; tx = (w - SIZE * s) / 2; ty = (h - SIZE * s) / 2;
+    var w = vp.clientWidth, h = vp.clientHeight, L = sideW();
+    fit = Math.min(w - L, h) / SIZE * 0.98;
+    s = fit; tx = L + (w - L - SIZE * s) / 2; ty = (h - SIZE * s) / 2;
     applyView();
   }
   function zoomAt(cx, cy, ns) {
@@ -290,26 +421,30 @@ window.FIREBASE_CONFIG = {
   window.addEventListener('pointercancel', function (e) { endPtr(e, true); });
   window.addEventListener('pointerdown', unlockAudio);
 
-  /* ---------- cofres ---------- */
-  function makeChest() {
+  /* ---------- marcadores ---------- */
+  function makeMarker(type) {
     var el = document.createElement('div');
-    el.className = 'chest';
-    el.innerHTML = '<svg class="ic" viewBox="0 0 40 34" aria-hidden="true"><use href="#chest"></use></svg>';
+    el.className = 'chest k-' + type;
+    el.innerHTML = '<svg class="ic" viewBox="0 0 40 40" aria-hidden="true"><use href="#' + type + '"></use></svg>';
     return el;
   }
   function place(el, x, y) { el.style.left = (x * SIZE) + 'px'; el.style.top = (y * SIZE) + 'px'; }
 
   function onTap(e) {
+    if (narrow.matches && side.classList.contains('open')) { closeSide(); return; }
     var r = vp.getBoundingClientRect();
     var x = ((e.clientX - r.left) - tx) / (s * SIZE), y = ((e.clientY - r.top) - ty) / (s * SIZE);
     if (x < 0 || x > 1 || y < 0 || y > 1) { clearPending(); return; }
     if (!booted) return;
-    if (!canWrite) { flash('Solo puedes ver este mapa. Pide acceso de colaborador para colocar cofres.'); return; }
-    setPending(x, y);
+    if (!canWrite) { flash('Solo puedes ver este mapa.'); return; }
+    var tool = activeTool();
+    if (tool === 'chest') { setPending(x, y); return; }
+    clearPending();
+    saveMarker(tool, x, y, tool === 'boss' ? BOSS_MIN : 0);
   }
   function setPending(x, y) {
     clearPending();
-    var el = makeChest(); el.classList.add('pending'); place(el, x, y);
+    var el = makeMarker('chest'); el.classList.add('pending'); place(el, x, y);
     var pop = document.createElement('div'); pop.className = 'pop';
     MINS.forEach(function (m) {
       var b = document.createElement('button'); b.type = 'button';
@@ -319,10 +454,10 @@ window.FIREBASE_CONFIG = {
     });
     el.appendChild(pop); world.appendChild(el);
     pending = { x: x, y: y, el: el };
-    var sx = tx + x * SIZE * s, sy = ty + y * SIZE * s, half = pop.offsetWidth / 2 + 8;
+    var sx = tx + x * SIZE * s, sy = ty + y * SIZE * s, half = pop.offsetWidth / 2 + 8, L = sideW();
     if (sy < 150) pop.classList.add('below');
     var dx = 0;
-    if (sx - half < 0) dx = half - sx; else if (sx + half > vp.clientWidth) dx = vp.clientWidth - half - sx;
+    if (sx - half < L) dx = L - (sx - half); else if (sx + half > vp.clientWidth) dx = vp.clientWidth - half - sx;
     pop.style.setProperty('--dx', dx + 'px');
     var first = pop.querySelector('button'); if (first) first.focus({ preventScroll: true });
     syncUI();
@@ -331,11 +466,15 @@ window.FIREBASE_CONFIG = {
 
   function startTimer(min) {
     if (!pending || !canWrite) return;
-    var now = nowMs();
-    var data = { x: pending.x, y: pending.y, minutes: min, endsAt: now + min * 60000, createdAt: now };
+    var x = pending.x, y = pending.y;
     clearPending();
+    saveMarker('chest', x, y, min);
+  }
+  function saveMarker(type, x, y, min) {
+    var now = nowMs();
+    var data = { type: type, x: x, y: y, minutes: min, endsAt: min ? now + min * 60000 : 0, createdAt: now };
     if (db) {
-      db.ref('chests').push(data).catch(function () { flash('No se pudo guardar el cofre. Inténtalo de nuevo.'); });
+      db.ref('chests').push(data).catch(function () { flash('No se pudo guardar el marcador. Inténtalo de nuevo.'); });
     } else {
       chests['l' + now + Math.random().toString(36).slice(2, 6)] = data; sync();
     }
@@ -343,7 +482,7 @@ window.FIREBASE_CONFIG = {
   function removeChest(id) {
     if (!canWrite || !chests[id]) return;
     if (db) {
-      db.ref('chests/' + id).remove().catch(function () { flash('No se pudo quitar el cofre. Inténtalo de nuevo.'); });
+      db.ref('chests/' + id).remove().catch(function () { flash('No se pudo quitar el marcador. Inténtalo de nuevo.'); });
     } else { delete chests[id]; sync(); }
   }
 
@@ -364,20 +503,34 @@ window.FIREBASE_CONFIG = {
       try { navigator.vibrate && navigator.vibrate(30); } catch (err) {}
     }, 650) };
   });
+
+  /* ---------- teclado ---------- */
   window.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') clearPending();
-    if ((e.key === 'Delete' || e.key === 'Backspace') && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.id) {
-      e.preventDefault(); removeChest(document.activeElement.dataset.id);
+    var tool = KEYS[e.code];
+    if (tool && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (held.indexOf(tool) < 0) { held.push(tool); paintTools(); }
+    }
+    if (e.key === 'Escape') { clearPending(); if (narrow.matches) closeSide(); }
+    var a = document.activeElement;
+    if ((e.key === 'Delete' || e.key === 'Backspace') && a && a.dataset && a.dataset.id) {
+      e.preventDefault(); removeChest(a.dataset.id);
     }
   });
+  window.addEventListener('keyup', function (e) {
+    var tool = KEYS[e.code];
+    if (tool) { held = held.filter(function (t) { return t !== tool; }); paintTools(); }
+  });
+  window.addEventListener('blur', function () { if (held.length) { held = []; paintTools(); } });
 
   /* ---------- render ---------- */
+  function typeOf(c) { return NAMES[c.type] ? c.type : 'chest'; }
   function sync() {
     Object.keys(chests).forEach(function (id) {
       if (els.has(id)) return;
-      var el = makeChest(); el.dataset.id = id; el.tabIndex = 0; el.setAttribute('role', 'img');
-      el.setAttribute('aria-label', 'Cofre con temporizador');
-      var t = document.createElement('div'); t.className = 't'; el.appendChild(t);
+      var type = typeOf(chests[id]);
+      var el = makeMarker(type); el.dataset.id = id; el.tabIndex = 0; el.setAttribute('role', 'img');
+      el.setAttribute('aria-label', type === 'portal' ? 'Portal' : NAMES[type] + ' con temporizador');
+      if (type !== 'portal') { var t = document.createElement('div'); t.className = 't'; el.appendChild(t); }
       place(el, chests[id].x, chests[id].y); world.appendChild(el); els.set(id, el);
     });
     els.forEach(function (el, id) {
@@ -385,31 +538,34 @@ window.FIREBASE_CONFIG = {
     });
     tick(); syncUI();
   }
-  function fmt(ms) {
-    var sec = Math.ceil(ms / 1000), m = Math.floor(sec / 60), r = sec % 60;
-    return m + ':' + (r < 10 ? '0' : '') + r;
+  function fmtSec(sec) {
+    var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), r = sec % 60;
+    var mm = h > 0 && m < 10 ? '0' + m : String(m);
+    return (h > 0 ? h + ':' : '') + mm + ':' + (r < 10 ? '0' : '') + r;
   }
+  function fmt(ms) { return fmtSec(Math.ceil(ms / 1000)); }
   function tick() {
-    var now = nowMs(), run = 0, done = 0, ring = false;
+    var now = nowMs(), run = 0, done = 0, portals = 0, ring = false;
     els.forEach(function (el, id) {
       var c = chests[id]; if (!c) return;
-      var left = c.endsAt - now, t = el.firstElementChild.nextElementSibling || el.querySelector('.t');
+      if (typeOf(c) === 'portal') { portals++; return; }
+      var left = c.endsAt - now, t = el.querySelector('.t');
       if (left > 0) {
         run++; running.add(id);
         var txt = fmt(left); if (t.textContent !== txt) t.textContent = txt;
         el.classList.remove('done');
       } else {
         done++;
-        if (t.textContent !== '0:00') t.textContent = '0:00';
+        var over = Math.min(Math.floor((now - c.endsAt) / 1000), MAX_OVER);
+        var txtO = over < 1 ? '0:00' : '-' + fmtSec(over);
+        if (t.textContent !== txtO) t.textContent = txtO;
         el.classList.add('done');
         if (running.has(id) && !notified.has(id)) { notified.add(id); ring = true; }
       }
     });
     if (ring) beep();
-    var parts = [];
-    parts.push(run + (run === 1 ? ' en cuenta' : ' en cuenta'));
-    parts.push(done + (done === 1 ? ' listo' : ' listos'));
-    var txt2 = parts.join(' · ');
+    var txt2 = run + ' en cuenta · ' + done + (done === 1 ? ' listo' : ' listos');
+    if (portals) txt2 += ' · ' + portals + (portals === 1 ? ' portal' : ' portales');
     if (!db && booted) txt2 += ' · modo local';
     if (dbError) txt2 += ' · sin conexión';
     if (elStats.textContent !== txt2) elStats.textContent = txt2;
@@ -417,8 +573,8 @@ window.FIREBASE_CONFIG = {
   function syncUI() {
     elEmpty.hidden = !(booted && canWrite && els.size === 0 && !pending);
     if (!booted) return;
-    if (!db) showNote('Firebase sin configurar: los cofres no se comparten con nadie.');
-    else if (!canWrite) showNote('Solo lectura: pide acceso de colaborador para colocar cofres.');
+    if (!db) showNote('Firebase sin configurar: los marcadores no se comparten con nadie.');
+    else if (!canWrite) showNote('Solo lectura: no puedes colocar marcadores.');
     else if (dbError) showNote('Se perdió la conexión con los datos compartidos.');
     else if (!noteTimer) elNote.hidden = true;
   }
@@ -451,7 +607,7 @@ window.FIREBASE_CONFIG = {
     } catch (e) {}
   }
 
-  /* ---------- datos compartidos ---------- */
+  /* ---------- datos compartidos (Firebase) ---------- */
   var offset = 0;
   function nowMs() { return Date.now() + offset; }
   function boot() {
@@ -485,3 +641,4 @@ window.FIREBASE_CONFIG = {
 </script>
 </body>
 </html>
+
